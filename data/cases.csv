@@ -1,0 +1,5 @@
+case_id,invoice_amount,days_overdue
+IND-7701,450000,45
+IND-7702,12000,85
+IND-7703,95000,20
+IND-7704,5000,120
