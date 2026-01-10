@@ -1,0 +1,4 @@
+dca_name,recovery_rate,sla_adherence,trust_score
+Alpha India,0.89,0.92,90
+Beta Recoveries,0.68,0.75,70
+Gamma Debt-Solvers,0.38,0.45,35
