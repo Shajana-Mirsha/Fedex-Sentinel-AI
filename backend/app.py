@@ -1,64 +1,59 @@
-import csv
-import os
-import webbrowser
+import csv, os, webbrowser
+from datetime import datetime
 
+# Import modular components
 from ai_engine import predict_recovery_probability
 from governance import get_governance_state
 from allocator import smart_allocate
 from trust_score import calculate_trust_score
 from sla_checker import check_sla
 
-
+# --- SYSTEM CONFIG ---
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-DATA_DIR = os.path.join(BASE_DIR, "backend", "data")
+DATA_DIR = os.path.join(BASE_DIR, "data")
 FRONTEND_DIR = os.path.join(BASE_DIR, "frontend")
+os.makedirs(DATA_DIR, exist_ok=True)
+os.makedirs(FRONTEND_DIR, exist_ok=True)
 
+def setup_production_data():
+    """Generates high-integrity mock data for the demo."""
+    with open(os.path.join(DATA_DIR, "dcas.csv"), "w", newline="", encoding="utf-8") as f:
+        writer = csv.writer(f)
+        writer.writerow(["dca_name", "recovery_rate", "sla_adherence"])
+        writer.writerows([
+            ["Alpha India Recovery", 0.95, 0.98],
+            ["Beta Recoveries", 0.78, 0.85],
+            ["Gamma Debt-Solvers", 0.40, 0.50]
+        ])
 
-def setup_demo_data():
-    os.makedirs(DATA_DIR, exist_ok=True)
+    with open(os.path.join(DATA_DIR, "cases.csv"), "w", newline="", encoding="utf-8") as f:
+        writer = csv.writer(f)
+        writer.writerow(["case_id", "invoice_amount", "days_overdue"])
+        writer.writerows([
+            ["IND-7701", 450000, 15],
+            ["IND-7702", 12000, 75],
+            ["IND-7703", 95000, 45],
+            ["IND-7704", 5000, 95]
+        ])
 
-    # Synthetic Indian DCA Performance Data (RAW INPUTS ONLY)
-    with open(os.path.join(DATA_DIR, "dcas.csv"), "w", newline="") as f:
-        f.write(
-            "dca_name,recovery_rate,sla_adherence\n"
-            "Alpha India,0.89,0.92\n"
-            "Beta Recoveries,0.68,0.75\n"
-            "Gamma Debt-Solvers,0.38,0.45\n"
-        )
+def build_dashboard():
+    print("FedEx Sentinel: Merging Modules & Building Governance Dashboard...")
+    setup_production_data()
 
-    # Synthetic FedEx India Case Data (₹)
-    with open(os.path.join(DATA_DIR, "cases.csv"), "w", newline="") as f:
-        f.write(
-            "case_id,invoice_amount,days_overdue\n"
-            "IND-7701,450000,45\n"
-            "IND-7702,12000,85\n"
-            "IND-7703,95000,20\n"
-            "IND-7704,5000,120\n"
-        )
-
-
-def run_sentinel():
-    print("🚀 Initializing FedEx Sentinel AI …")
-    setup_demo_data()
-
-    # ----------------------------
-    # Load DCAs & compute trust
-    # ----------------------------
+    # 1. Load DCAs
     dcas = []
-    with open(os.path.join(DATA_DIR, "dcas.csv")) as f:
+    dca_map = {}
+    with open(os.path.join(DATA_DIR, "dcas.csv"), encoding="utf-8") as f:
         for r in csv.DictReader(f):
-            trust = calculate_trust_score(
-                float(r["recovery_rate"]),
-                float(r["sla_adherence"])
+            r["trust_score"] = calculate_trust_score(
+                r["recovery_rate"], r["sla_adherence"]
             )
-            r["trust_score"] = trust
             dcas.append(r)
+            dca_map[r["dca_name"]] = r
 
-    # ----------------------------
-    # Load cases
-    # ----------------------------
+    # 2. Load Cases
     cases = []
-    with open(os.path.join(DATA_DIR, "cases.csv")) as f:
+    with open(os.path.join(DATA_DIR, "cases.csv"), encoding="utf-8") as f:
         for r in csv.DictReader(f):
             cases.append({
                 "case_id": r["case_id"],
@@ -66,171 +61,125 @@ def run_sentinel():
                 "days_overdue": int(r["days_overdue"])
             })
 
-    # ----------------------------
-    # Core system logic
-    # ----------------------------
+    # 3. Core Logic
     allocations = smart_allocate(cases, dcas)
-    alerts = check_sla(cases)
+    sla_alerts = check_sla(cases)
 
-    # ----------------------------
-    # KPIs (computed, not hardcoded)
-    # ----------------------------
-    portfolio_value = sum(c["amount"] for c in cases)
+    # 4. KPIs (COMPUTED ONCE – FIXED)
+    total_portfolio = sum(c["amount"] for c in cases)
 
-    recovery_probs = []
-    for items in allocations.values():
-        for item in items:
-            if isinstance(item, dict):
-                recovery_probs.append(item["recovery_prob"])
+    all_probs = []
+    for d_list in allocations.values():
+        for c in d_list:
+            all_probs.append(c["recovery_prob"])
 
-    avg_recovery = round(sum(recovery_probs) / len(recovery_probs), 1) if recovery_probs else 0
+    avg_prob = round(sum(all_probs) / len(all_probs), 1) if all_probs else 0
 
-    # ----------------------------
-    # ORIGINAL UI (UNCHANGED STYLE)
-    # ----------------------------
+    # 5. UI (UNCHANGED)
     html = f"""
-    <html>
+    <!DOCTYPE html>
+    <html lang="en">
     <head>
-        <title>FedEx Sentinel AI</title>
-        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+        <title>FedEx Sentinel | DCA Governance</title>
+        <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
         <style>
-            :root {{ --fedex-purple: #4D148C; --fedex-orange: #FF6200; --bg: #f4f4f9; }}
-            body {{ font-family: 'Segoe UI', sans-serif; background: var(--bg); margin: 0; }}
-            .nav {{
-                background: var(--fedex-purple);
-                color: white;
-                padding: 15px 40px;
-                display: flex;
-                justify-content: space-between;
-                align-items: center;
-                border-bottom: 5px solid var(--fedex-orange);
-            }}
-            .container {{ padding: 30px; }}
-            .stats {{ display: flex; gap: 20px; margin-bottom: 30px; }}
-            .card {{
-                background: white;
-                padding: 20px;
-                border-radius: 10px;
-                flex: 1;
-                box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-                border-left: 5px solid var(--fedex-orange);
-            }}
-            .card h3 {{ font-size: 0.8em; color: #777; margin: 0; }}
-            .card p {{
-                font-size: 1.8em;
-                font-weight: bold;
-                margin: 10px 0;
-                color: var(--fedex-purple);
-            }}
-            .agency-box {{
-                background: white;
-                border-radius: 10px;
-                padding: 20px;
-                margin-bottom: 20px;
-                box-shadow: 0 2px 10px rgba(0,0,0,0.05);
-            }}
-            .badge {{
-                padding: 5px 15px;
-                border-radius: 20px;
-                font-weight: bold;
-                font-size: 0.8em;
-            }}
-            table {{
-                width: 100%;
-                border-collapse: collapse;
-                margin-top: 15px;
-            }}
-            th {{
-                text-align: left;
-                color: #888;
-                border-bottom: 1px solid #eee;
-                padding: 10px;
-            }}
-            td {{
-                padding: 10px;
-                border-bottom: 1px solid #fafafa;
-                font-size: 0.9em;
-            }}
-            .alert {{
-                color: #c0392b;
-                font-weight: bold;
-            }}
+            :root {{ --fedex-purple: #4D148C; --fedex-orange: #FF6600; }}
+            body {{ background: #f4f7fc; font-family: 'Inter', sans-serif; color: #333; }}
+            .navbar {{ background: var(--fedex-purple); color: white; border-bottom: 4px solid var(--fedex-orange); }}
+            .metric-card {{ background: white; border-radius: 12px; padding: 20px; box-shadow: 0 4px 10px rgba(0,0,0,0.05); text-align: center; border-bottom: 4px solid #eee; }}
+            .metric-value {{ font-size: 1.8rem; font-weight: 800; color: var(--fedex-purple); }}
+            .agency-header {{ background: #fff; padding: 15px; border-radius: 10px 10px 0 0; border-left: 5px solid var(--fedex-orange); margin-top: 30px; }}
+            .alert-box {{ background: #fff1f1; border-left: 5px solid #d9534f; padding: 15px; border-radius: 8px; margin-top: 20px; }}
         </style>
     </head>
     <body>
-
-        <div class="nav">
-            <h2><i class="fas fa-truck-fast"></i> FedEx Sentinel: DCA Governance</h2>
-            <span>Status: <b style="color:#2ecc71;">LIVE</b></span>
-        </div>
+        <nav class="navbar px-4 py-3 mb-4">
+            <h4 class="m-0"><i class="fas fa-shield-alt"></i> FedEx Sentinel: DCA Governance</h4>
+            <span class="badge bg-light text-dark">Status: LIVE</span>
+        </nav>
 
         <div class="container">
-            <div class="stats">
-                <div class="card">
-                    <h3>PORTFOLIO UNDER MANAGEMENT</h3>
-                    <p>₹{portfolio_value:,}</p>
+            <div class="row g-3 mb-4">
+                <div class="col-md-4">
+                    <div class="metric-card">
+                        <small class="text-muted">PORTFOLIO UNDER MANAGEMENT</small>
+                        <div class="metric-value">₹{total_portfolio:,.1f}</div>
+                    </div>
                 </div>
-                <div class="card">
-                    <h3>AVG RECOVERY PROBABILITY</h3>
-                    <p>{avg_recovery}%</p>
+                <div class="col-md-4">
+                    <div class="metric-card">
+                        <small class="text-muted">AVG RECOVERY PROBABILITY</small>
+                        <div class="metric-value">{avg_prob:.1f}%</div>
+                    </div>
                 </div>
-                <div class="card">
-                    <h3>GOVERNANCE STATUS</h3>
-                    <p>ACTIVE</p>
+                <div class="col-md-4">
+                    <div class="metric-card">
+                        <small class="text-muted">GOVERNANCE STATUS</small>
+                        <div class="metric-value text-success">ACTIVE</div>
+                    </div>
                 </div>
             </div>
     """
 
-    for dca_name, items in allocations.items():
-        dca_info = next((d for d in dcas if d["dca_name"] == dca_name), None)
-        if not dca_info:
-            continue
+    for dca_name, d_cases in allocations.items():
+        dca_info = dca_map[dca_name]
+        tier, color = get_governance_state(dca_info["trust_score"])
 
-        state, color = get_governance_state(dca_info["trust_score"])
         html += f"""
-        <div class="agency-box">
-            <div style="display:flex; justify-content:space-between; align-items:center;">
-                <h3 style="color:var(--fedex-purple); margin:0;">{dca_name}</h3>
-                <span class="badge" style="background:{color}22; color:{color}; border:1px solid {color};">
-                    {state}
-                </span>
+            <div class="agency-header d-flex justify-content-between align-items-center shadow-sm">
+                <h5 class="m-0 fw-bold">{dca_name}</h5>
+                <span class="badge" style="background:{color}">{tier}</span>
             </div>
-            <table>
-                <tr>
-                    <th>Case ID</th>
-                    <th>Invoice Amount</th>
-                    <th>Recovery Probability</th>
-                    <th>SOP Status</th>
-                </tr>
+            <div class="bg-white p-3 shadow-sm rounded-bottom mb-4">
+                <table class="table table-hover align-middle m-0">
+                    <thead class="table-light small">
+                        <tr><th>Case ID</th><th>Invoice Amount</th><th>Recovery Probability</th><th>SOP Status</th></tr>
+                    </thead>
+                    <tbody>
         """
 
-        for item in items:
-            html += f"""
-            <tr>
-                <td>{item['case_id']}</td>
-                <td style="font-weight:bold;">₹{item['amount']:,}</td>
-                <td style="color:var(--fedex-orange);">{item['recovery_prob']}%</td>
-                <td><i class="fas fa-circle-check" style="color:#27ae60;"></i> Verified</td>
-            </tr>
-            """
+        if not d_cases:
+            html += "<tr><td colspan='4' class='text-center text-muted'>No cases assigned in this cycle</td></tr>"
+        else:
+            for c in d_cases:
+                html += f"""
+                    <tr>
+                        <td><strong>{c['case_id']}</strong></td>
+                        <td>₹{c['amount']:,}</td>
+                        <td>
+                            <div class="progress" style="height:8px; width:100px;">
+                                <div class="progress-bar" style="width:{c['recovery_prob']}%; background:{color}"></div>
+                            </div> {c['recovery_prob']}%
+                        </td>
+                        <td><span class="text-success"><i class="fas fa-check-circle"></i> Verified</span></td>
+                    </tr>
+                """
+        html += "</tbody></table></div>"
 
-        html += "</table></div>"
+    html += """
+            <div class="mt-5 mb-5">
+                <h5 class="fw-bold"><i class="fas fa-exclamation-triangle text-danger"></i> SLA Alerts</h5>
+                <div class="alert-box shadow-sm">
+    """
 
-    if alerts:
-        html += "<h3>SLA Alerts</h3>"
-        for a in alerts:
-            html += f"<p class='alert'>{a}</p>"
+    for alert in sla_alerts:
+        html += f"<div class='mb-2 small'>{alert}</div>"
 
-    html += "</div></body></html>"
+    html += """
+                </div>
+            </div>
+        </div>
+    </body>
+    </html>
+    """
 
-    os.makedirs(FRONTEND_DIR, exist_ok=True)
     path = os.path.join(FRONTEND_DIR, "dashboard.html")
     with open(path, "w", encoding="utf-8") as f:
         f.write(html)
 
+    print(f"SYSTEM MERGE COMPLETE: {path}")
     webbrowser.open("file://" + path)
-    print("Dashboard generated:", path)
-
 
 if __name__ == "__main__":
-    run_sentinel()
+    build_dashboard()
