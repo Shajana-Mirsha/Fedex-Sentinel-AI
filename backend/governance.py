@@ -1,13 +1,11 @@
 def get_governance_state(trust_score):
-    """
-    Automated Governance: Moves DCAs between 'Premier' and 'Restricted' status.
-    This eliminates the "Manual Tracking" pain point.
-    """
-    if trust_score >= 82:
-        return "PREMIER", "#27ae60"  
-    elif trust_score >= 60:
-        return "TRUSTED", "#2980b9"  
-    elif trust_score >= 40:
-        return "MONITORED", "#f39c12" 
+    score = float(trust_score)
+
+    if score >= 0.90:
+        return "PREMIER PARTNER", "#4D148C"
+    elif score >= 0.75:
+        return "ACTIVE STANDARD", "#FF6600"
+    elif score >= 0.50:
+        return "PROBATIONARY", "#f39c12"
     else:
-        return "RESTRICTED", "#c0392b"
+        return "RESTRICTED", "#e74c3c"
